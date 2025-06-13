@@ -1,0 +1,206 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id                 Int          @id @default(autoincrement())
+  email              String       @unique
+  password_hash      String
+  nombre             String
+  apellido           String
+  telefono           String?
+  rut                String       @unique
+  direccion          String?
+  comuna             String?
+  tipo_usuario       String       // 'padre' o 'conductor'
+  verificado         Boolean      @default(false)
+  activo             Boolean      @default(true)
+  fecha_registro     DateTime     @default(now())
+  fecha_actualizacion DateTime     @default(now()) @updatedAt
+  
+  // Relaciones
+  conductor          Conductor?
+  padre              Padre?
+  evaluacionesRecibidas Evaluacion[] @relation("EvaluadoRelacion")
+  evaluacionesRealizadas Evaluacion[] @relation("EvaluadorRelacion")
+}
+
+model Conductor {
+  id                          Int       @id @default(autoincrement())
+  usuario_id                  Int       @unique
+  numero_licencia             String    @unique
+  tipo_licencia               String
+  fecha_vencimiento_licencia  DateTime
+  anos_experiencia            Int
+  antecedentes_verificados    Boolean   @default(false)
+  fecha_verificacion_antecedentes DateTime?
+  calificacion_promedio       Float     @default(0.00)
+  total_viajes                Int       @default(0)
+  estado                      String    @default("pendiente") // 'pendiente', 'verificado', 'suspendido', 'rechazado'
+  fecha_creacion              DateTime  @default(now())
+  
+  // Relaciones
+  usuario                     Usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  vehiculos                   Vehiculo[]
+  rutas                       Ruta[]
+}
+
+model Padre {
+  id                          Int       @id @default(autoincrement())
+  usuario_id                  Int       @unique
+  numero_estudiantes          Int       @default(1)
+  contacto_emergencia_nombre  String?
+  contacto_emergencia_telefono String?
+  fecha_creacion              DateTime  @default(now())
+  
+  // Relaciones
+  usuario                     Usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  estudiantes                 Estudiante[]
+  servicios                   Servicio[]
+  solicitudes                 Solicitud[]
+}
+
+model Estudiante {
+  id                    Int       @id @default(autoincrement())
+  padre_id              Int
+  nombre                String
+  apellido              String
+  fecha_nacimiento      DateTime
+  curso                 String?
+  colegio               String
+  direccion_colegio     String?
+  necesidades_especiales String?
+  activo                Boolean   @default(true)
+  fecha_creacion        DateTime  @default(now())
+  
+  // Relaciones
+  padre                 Padre     @relation(fields: [padre_id], references: [id], onDelete: Cascade)
+  servicios             Servicio[]
+  solicitudes           Solicitud[]
+}
+
+model Vehiculo {
+  id                          Int       @id @default(autoincrement())
+  conductor_id                Int
+  marca                       String
+  modelo                      String
+  ano                         Int
+  patente                     String    @unique
+  color                       String?
+  capacidad_maxima            Int
+  tipo_vehiculo               String
+  numero_revision_tecnica     String?
+  fecha_vencimiento_revision  DateTime?
+  numero_seguro               String?
+  fecha_vencimiento_seguro    DateTime?
+  activo                      Boolean   @default(true)
+  fecha_creacion              DateTime  @default(now())
+  
+  // Relaciones
+  conductor                   Conductor @relation(fields: [conductor_id], references: [id], onDelete: Cascade)
+  rutas                       Ruta[]
+}
+
+model Ruta {
+  id                Int       @id @default(autoincrement())
+  conductor_id      Int
+  vehiculo_id       Int?
+  nombre            String
+  origen            String
+  destino           String
+  colegio_destino   String
+  horario_ida       String
+  horario_vuelta    String
+  precio_mensual    Int
+  capacidad_maxima  Int
+  descripcion       String?
+  dias_servicio     String    @default("lunes-viernes")
+  activa            Boolean   @default(true)
+  fecha_creacion    DateTime  @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
+  
+  // Relaciones
+  conductor         Conductor @relation(fields: [conductor_id], references: [id], onDelete: Cascade)
+  vehiculo          Vehiculo? @relation(fields: [vehiculo_id], references: [id])
+  servicios         Servicio[]
+  solicitudes       Solicitud[]
+}
+
+model Servicio {
+  id              Int       @id @default(autoincrement())
+  ruta_id         Int
+  padre_id        Int
+  estudiante_id   Int
+  precio_acordado Int
+  fecha_inicio    DateTime
+  fecha_fin       DateTime?
+  estado          String    @default("activo") // 'activo', 'pausado', 'finalizado', 'cancelado'
+  notas           String?
+  fecha_creacion  DateTime  @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
+  
+  // Relaciones
+  ruta            Ruta      @relation(fields: [ruta_id], references: [id], onDelete: Cascade)
+  padre           Padre     @relation(fields: [padre_id], references: [id], onDelete: Cascade)
+  estudiante      Estudiante @relation(fields: [estudiante_id], references: [id], onDelete: Cascade)
+  pagos           Pago[]
+  evaluaciones    Evaluacion[]
+}
+
+model Solicitud {
+  id                  Int       @id @default(autoincrement())
+  ruta_id             Int
+  padre_id            Int
+  estudiante_id       Int
+  mensaje             String?
+  estado              String    @default("pendiente") // 'pendiente', 'aceptada', 'rechazada', 'cancelada'
+  fecha_solicitud     DateTime  @default(now())
+  fecha_respuesta     DateTime?
+  respuesta_conductor String?
+  
+  // Relaciones
+  ruta                Ruta      @relation(fields: [ruta_id], references: [id], onDelete: Cascade)
+  padre               Padre     @relation(fields: [padre_id], references: [id], onDelete: Cascade)
+  estudiante          Estudiante @relation(fields: [estudiante_id], references: [id], onDelete: Cascade)
+}
+
+model Evaluacion {
+  id                Int       @id @default(autoincrement())
+  servicio_id       Int
+  evaluador_id      Int
+  evaluado_id       Int
+  calificacion      Int
+  comentario        String?
+  aspectos_evaluados String?
+  fecha_evaluacion  DateTime  @default(now())
+  
+  // Relaciones
+  servicio          Servicio  @relation(fields: [servicio_id], references: [id], onDelete: Cascade)
+  evaluador         Usuario   @relation("EvaluadorRelacion", fields: [evaluador_id], references: [id], onDelete: Cascade)
+  evaluado          Usuario   @relation("EvaluadoRelacion", fields: [evaluado_id], references: [id], onDelete: Cascade)
+}
+
+model Pago {
+  id                  Int       @id @default(autoincrement())
+  servicio_id         Int
+  monto               Int
+  mes_correspondiente DateTime
+  metodo_pago         String
+  estado_pago         String    @default("pendiente") // 'pendiente', 'pagado', 'vencido', 'cancelado'
+  fecha_vencimiento   DateTime
+  fecha_pago          DateTime?
+  referencia_pago     String?
+  notas               String?
+  fecha_creacion      DateTime  @default(now())
+  
+  // Relaciones
+  servicio            Servicio  @relation(fields: [servicio_id], references: [id], onDelete: Cascade)
+}
